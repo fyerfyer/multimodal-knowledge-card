@@ -1,3 +1,4 @@
+import os
 from typing import Dict, Any, Union, List, Optional
 import time
 from pathlib import Path
@@ -5,6 +6,7 @@ import numpy as np
 
 from app.utils.logger import logger
 from app.core.vision.blip import BLIPModel
+from app.config.settings import settings
 
 class ImageCaptioner:
     """
@@ -14,7 +16,7 @@ class ImageCaptioner:
     
     def __init__(
         self, 
-        model_name: str = "Salesforce/blip-image-captioning-base",
+        model_name: Optional[str] = None,
         device: Optional[str] = None,
         caption_styles: Optional[Dict[str, str]] = None
     ):
@@ -28,9 +30,16 @@ class ImageCaptioner:
         """
         # 如果未指定设备，则使用自动选择
         self.device = device
+
+        # print(f"[DEBUG] Initializing ImageCaptioner")
+        # print(f"[DEBUG] os.environ has VISION_MODEL_PATH: {'VISION_MODEL_PATH' in os.environ}")
+        # print(f"[DEBUG] Settings dir: {dir(settings)}")
+        
+        # 使用配置的模型路径或默认路径
+        model_path = model_name or settings.VISION_MODEL_PATH or "Salesforce/blip-image-captioning-base"
         
         # 初始化BLIP模型
-        self.blip_model = BLIPModel(model_name=model_name, device=self.device)
+        self.blip_model = BLIPModel(model_name=model_path, device=self.device)
         
         # 定义不同的描述风格模板
         self.caption_styles = caption_styles or {
@@ -41,7 +50,7 @@ class ImageCaptioner:
             "formula": "a mathematical formula representing",  # 公式描述风格
         }
         
-        logger.info(f"ImageCaptioner initialized with model: {model_name}")
+        logger.info(f"ImageCaptioner initialized with model: {model_path}")
         
     def generate_caption(
         self, 

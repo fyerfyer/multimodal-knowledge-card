@@ -21,7 +21,7 @@ class VisionService:
         self,
         captioner_instance: Optional[ImageCaptioner] = None,
         classifier_instance: Optional[ContentClassifier] = None,
-        blip_model_name: str = "Salesforce/blip-image-captioning-base",
+        blip_model_name: Optional[str] = None,
         device: Optional[str] = None
     ):
         """
@@ -30,7 +30,7 @@ class VisionService:
         Args:
             captioner_instance: 图像描述生成器实例，如果为None则使用默认实例
             classifier_instance: 内容分类器实例，如果为None则使用默认实例
-            blip_model_name: BLIP模型名称或路径
+            blip_model_name: BLIP模型名称或路径，如果为None则使用配置
             device: 运行设备 ('cuda' 或 'cpu')，如果为None则自动选择
         """
         # 使用提供的实例或默认单例
@@ -39,7 +39,7 @@ class VisionService:
         
         # 根据配置创建BLIP模型（可能在captioner和classifier中已经创建）
         # 但保留直接访问的能力以支持某些特殊操作
-        self.blip_model_name = settings.VISION_MODEL_PATH or blip_model_name
+        self.blip_model_name = blip_model_name or settings.VISION_MODEL_PATH or "Salesforce/blip-image-captioning-base"
         self.device = device
         self.blip_model = None  # 延迟加载
         

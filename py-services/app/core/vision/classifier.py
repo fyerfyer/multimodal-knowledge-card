@@ -6,6 +6,7 @@ from enum import Enum
 
 from app.utils.logger import logger
 from app.core.vision.blip import BLIPModel
+from app.config.settings import settings
 
 class ContentType(Enum):
     """图像内容类型枚举"""
@@ -28,7 +29,7 @@ class ContentClassifier:
     
     def __init__(
         self, 
-        model_name: str = "Salesforce/blip-vqa-base",
+        model_name: Optional[str] = None,
         device: Optional[str] = None,
         confidence_threshold: float = 0.7,
     ):
@@ -43,12 +44,17 @@ class ContentClassifier:
         self.device = device
         self.confidence_threshold = confidence_threshold
         
+        # 使用配置的VQA模型路径或默认路径
+        vqa_model_path = settings.VISION_VQA_MODEL_PATH or "Salesforce/blip-vqa-base"
+        
         # 初始化BLIP模型（使用VQA功能）
         self.blip_model = BLIPModel(
-            model_name="Salesforce/blip-image-captioning-base",
+            model_name=settings.VISION_MODEL_PATH or "Salesforce/blip-image-captioning-base",
             device=self.device,
-            vqa_model_name=model_name
+            vqa_model_name=vqa_model_path
         )
+        
+        logger.info(f"ContentClassifier initialized with model: {vqa_model_path}")
         
         # 针对不同内容类型的特征关键词
         self.content_keywords = {
@@ -70,8 +76,6 @@ class ContentClassifier:
             "Does this image contain a table or grid?",
             "Is this handwritten content or printed text?"
         ]
-        
-        logger.info(f"ContentClassifier initialized with model: {model_name}")
     
     def classify_content(
         self, 

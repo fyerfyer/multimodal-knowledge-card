@@ -1,5 +1,6 @@
 from typing import Union, List, Dict, Any, Optional
 import torch
+import os
 from pathlib import Path
 import numpy as np
 from PIL import Image
@@ -7,7 +8,7 @@ from transformers import BlipProcessor, BlipForConditionalGeneration, BlipForQue
 
 from app.utils.logger import logger
 from app.config.settings import settings
-from app.utils.image_utils import read_image, preprocess_image_for_blip, convert_to_rgb
+from app.utils.image_utils import read_image, convert_to_rgb
 
 class BLIPModel:
     """
@@ -17,7 +18,7 @@ class BLIPModel:
     def __init__(
         self, 
         model_name: str = "Salesforce/blip-image-captioning-base",
-        device: str = "cuda" if torch.cuda.is_available() else "cpu",
+        device: Optional[str] = None,
         vqa_model_name: Optional[str] = None
     ):
         """
@@ -25,17 +26,23 @@ class BLIPModel:
         
         Args:
             model_name: 模型名称或路径
-            device: 运行设备 ('cuda' 或 'cpu')
+            device: 运行设备 ('cuda' 或 'cpu')，如果为None则自动选择
             vqa_model_name: VQA模型名称，如果为None则不加载VQA模型
         """
         self.model_name = model_name
-        self.device = device
+        # 确保device字段为合法值
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.vqa_model_name = vqa_model_name or "Salesforce/blip-vqa-base"
         
         self.processor = None
         self.model = None
         self.vqa_model = None
         
+        # 设置HuggingFace镜像站点
+        if settings.USE_HF_MIRROR and os.environ.get('HF_ENDPOINT') is None:
+            os.environ['HF_ENDPOINT'] = settings.HF_MIRROR
+            logger.info(f"Using HuggingFace mirror: {settings.HF_MIRROR}")
+            
         # 初始化模型
         self._load_captioning_model()
         
@@ -43,19 +50,26 @@ class BLIPModel:
     
     def _load_captioning_model(self) -> None:
         """
-        加载图像描述生成模型
+        加载图像描述生成模型，优先使用本地模型
         """
         try:
-            logger.info(f"Loading BLIP captioning model: {self.model_name}")
-            
-            # 使用用户配置的模型路径或默认路径
+            # 优先使用配置中指定的本地模型路径
             model_path = settings.VISION_MODEL_PATH or self.model_name
+            logger.info(f"Loading BLIP captioning model: {model_path}")
             
-            # 加载处理器和模型
-            self.processor = BlipProcessor.from_pretrained(model_path)
-            self.model = BlipForConditionalGeneration.from_pretrained(model_path).to(self.device)
-            
-            logger.info("BLIP captioning model loaded successfully")
+            try:
+                # 尝试从本地加载
+                self.processor = BlipProcessor.from_pretrained(model_path)
+                self.model = BlipForConditionalGeneration.from_pretrained(model_path).to(self.device)
+                logger.info("BLIP captioning model loaded successfully")
+            except Exception as local_err:
+                # 如果本地加载失败，尝试从HuggingFace加载
+                if settings.VISION_MODEL_PATH:
+                    logger.warning(f"Failed to load local model from {model_path}, trying HuggingFace: {local_err}")
+                
+                self.processor = BlipProcessor.from_pretrained(self.model_name)
+                self.model = BlipForConditionalGeneration.from_pretrained(self.model_name).to(self.device)
+                logger.info("BLIP captioning model loaded from HuggingFace successfully")
             
         except Exception as e:
             logger.error(f"Failed to load BLIP captioning model: {str(e)}")
@@ -65,7 +79,7 @@ class BLIPModel:
     
     def _load_vqa_model(self) -> bool:
         """
-        按需加载VQA模型
+        按需加载VQA模型，优先使用本地模型
         
         Returns:
             bool: 加载是否成功
@@ -74,15 +88,32 @@ class BLIPModel:
             return True  # 已经加载
             
         try:
-            logger.info(f"Loading BLIP VQA model: {self.vqa_model_name}")
+            # 优先使用配置中指定的本地VQA模型路径
+            model_path = settings.VISION_VQA_MODEL_PATH or self.vqa_model_name
+            logger.info(f"Loading BLIP VQA model: {model_path}")
             
-            self.vqa_model = BlipForQuestionAnswering.from_pretrained(self.vqa_model_name).to(self.device)
-            
-            # VQA模型使用相同的处理器
-            if self.processor is None:
-                self.processor = BlipProcessor.from_pretrained(self.vqa_model_name)
+            try:
+                # 尝试从本地加载
+                self.vqa_model = BlipForQuestionAnswering.from_pretrained(model_path).to(self.device)
                 
-            logger.info("BLIP VQA model loaded successfully")
+                # VQA模型使用相同的处理器或加载新的处理器
+                if self.processor is None:
+                    self.processor = BlipProcessor.from_pretrained(model_path)
+                    
+                logger.info("BLIP VQA model loaded successfully from local path")
+                
+            except Exception as local_err:
+                # 如果本地加载失败，尝试从HuggingFace加载
+                if settings.VISION_VQA_MODEL_PATH:
+                    logger.warning(f"Failed to load local VQA model from {model_path}, trying HuggingFace: {local_err}")
+                
+                self.vqa_model = BlipForQuestionAnswering.from_pretrained(self.vqa_model_name).to(self.device)
+                
+                if self.processor is None:
+                    self.processor = BlipProcessor.from_pretrained(self.vqa_model_name)
+                
+                logger.info("BLIP VQA model loaded from HuggingFace successfully")
+                
             return True
             
         except Exception as e:

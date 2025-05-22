@@ -28,11 +28,19 @@ class Settings(BaseSettings):
     # 图像理解模型配置
     VISION_MODEL: str = "blip"  # blip 或 clip
     VISION_MODEL_PATH: Optional[str] = None
+    VISION_VQA_MODEL_PATH: Optional[str] = None  # 添加VQA模型路径配置
     
     # 多模态语言模型配置
     LLM_MODEL: str = "qwen-vl"  # qwen-vl 或 deepseek-vl
     LLM_MODEL_PATH: Optional[str] = None
     LLM_API_KEY: Optional[str] = None
+    
+    # DashScope API配置
+    DASHSCOPE_API_KEY: Optional[str] = None  # 添加这一行
+    
+    # 模型下载配置
+    HF_MIRROR: str = "https://hf-mirror.com"  # 添加HuggingFace镜像站点
+    USE_HF_MIRROR: bool = True  # 是否使用镜像站点
     
     # 缓存配置
     ENABLE_CACHE: bool = True
