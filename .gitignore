@@ -177,6 +177,3 @@ design.txt
 *.idea
 uploads/
 logs/
-
-# huggingface model
-models/

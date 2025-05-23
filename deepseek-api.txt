@@ -1,0 +1,313 @@
+首次调用 API
+DeepSeek API 使用与 OpenAI 兼容的 API 格式，通过修改配置，您可以使用 OpenAI SDK 来访问 DeepSeek API，或使用与 OpenAI API 兼容的软件。
+
+PARAM	VALUE
+base_url *       	https://api.deepseek.com
+api_key	apply for an API key
+* 出于与 OpenAI 兼容考虑，您也可以将 base_url 设置为 https://api.deepseek.com/v1 来使用，但注意，此处 v1 与模型版本无关。
+
+* deepseek-chat 模型已全面升级为 DeepSeek-V3，接口不变。 通过指定 model='deepseek-chat' 即可调用 DeepSeek-V3。
+
+* deepseek-reasoner 是 DeepSeek 最新推出的推理模型 DeepSeek-R1。通过指定 model='deepseek-reasoner'，即可调用 DeepSeek-R1。
+
+调用对话 API
+在创建 API key 之后，你可以使用以下样例脚本的来访问 DeepSeek API。样例为非流式输出，您可以将 stream 设置为 true 来使用流式输出。
+
+curl
+python
+nodejs
+curl https://api.deepseek.com/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <DeepSeek API Key>" \
+  -d '{
+        "model": "deepseek-chat",
+        "messages": [
+          {"role": "system", "content": "You are a helpful assistant."},
+          {"role": "user", "content": "Hello!"}
+        ],
+        "stream": false
+      }'
+
+from openai import OpenAI
+
+# for backward compatibility, you can still use `https://api.deepseek.com/v1` as `base_url`.
+client = OpenAI(api_key="<your API key>", base_url="https://api.deepseek.com")
+
+response = client.chat.completions.create(
+    model="deepseek-chat",
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant"},
+        {"role": "user", "content": "Hello"},
+  ],
+    max_tokens=1024,
+    temperature=0.7,
+    stream=False
+)
+
+print(response.choices[0].message.content)
+
+from openai import OpenAI
+
+# user should set `base_url="https://api.deepseek.com/beta"` to use this feature.
+client = OpenAI(
+  api_key="<your API key>",
+  base_url="https://api.deepseek.com/beta",
+)
+response = client.completions.create(
+  model="deepseek-chat",
+  prompt="def fib(a):",
+  suffix="    return fib(a-1) + fib(a-2)",
+  max_tokens=128)
+print(response.choices[0].text)
+
+推理模型 (deepseek-reasoner)
+deepseek-reasoner 是 DeepSeek 推出的推理模型。在输出最终回答之前，模型会先输出一段思维链内容，以提升最终答案的准确性。我们的 API 向用户开放 deepseek-reasoner 思维链的内容，以供用户查看、展示、蒸馏使用。
+
+在使用 deepseek-reasoner 时，请先升级 OpenAI SDK 以支持新参数。
+
+pip3 install -U openai
+
+API 参数
+输入参数：
+
+max_tokens：最终回答的最大长度（不含思维链输出），默认为 4K，最大为 8K。请注意，思维链的输出最多可以达到 32K tokens，控思维链的长度的参数（reasoning_effort）将会在近期上线。
+输出字段：
+
+reasoning_content：思维链内容，与 content 同级，访问方法见访问样例
+content：最终回答内容
+上下文长度：API 最大支持 64K 上下文，输出的 reasoning_content 长度不计入 64K 上下文长度中
+
+支持的功能：对话补全，对话前缀续写 (Beta)
+
+不支持的功能：Function Call、Json Output、FIM 补全 (Beta)
+
+不支持的参数：temperature、top_p、presence_penalty、frequency_penalty、logprobs、top_logprobs。请注意，为了兼容已有软件，设置 temperature、top_p、presence_penalty、frequency_penalty 参数不会报错，但也不会生效。设置 logprobs、top_logprobs 会报错。
+
+上下文拼接
+在每一轮对话过程中，模型会输出思维链内容（reasoning_content）和最终回答（content）。在下一轮对话中，之前轮输出的思维链内容不会被拼接到上下文中，如下图所示：
+
+
+请注意，如果您在输入的 messages 序列中，传入了reasoning_content，API 会返回 400 错误。因此，请删除 API 响应中的 reasoning_content 字段，再发起 API 请求，方法如访问样例所示。
+
+访问样例
+下面的代码以 Python 语言为例，展示了如何访问思维链和最终回答，以及如何在多轮对话中进行上下文拼接。
+
+非流式
+流式
+from openai import OpenAI
+client = OpenAI(api_key="<DeepSeek API Key>", base_url="https://api.deepseek.com")
+
+# Round 1
+messages = [{"role": "user", "content": "9.11 and 9.8, which is greater?"}]
+response = client.chat.completions.create(
+    model="deepseek-reasoner",
+    messages=messages
+)
+
+reasoning_content = response.choices[0].message.reasoning_content
+content = response.choices[0].message.content
+
+# Round 2
+messages.append({'role': 'assistant', 'content': content})
+messages.append({'role': 'user', 'content': "How many Rs are there in the word 'strawberry'?"})
+response = client.chat.completions.create(
+    model="deepseek-reasoner",
+    messages=messages
+)
+# ...
+
+多轮对话
+本指南将介绍如何使用 DeepSeek /chat/completions API 进行多轮对话。
+
+DeepSeek /chat/completions API 是一个“无状态” API，即服务端不记录用户请求的上下文，用户在每次请求时，需将之前所有对话历史拼接好后，传递给对话 API。
+
+下面的代码以 Python 语言，展示了如何进行上下文拼接，以实现多轮对话。
+
+from openai import OpenAI
+client = OpenAI(api_key="<DeepSeek API Key>", base_url="https://api.deepseek.com")
+
+# Round 1
+messages = [{"role": "user", "content": "What's the highest mountain in the world?"}]
+response = client.chat.completions.create(
+    model="deepseek-chat",
+    messages=messages
+)
+
+messages.append(response.choices[0].message)
+print(f"Messages Round 1: {messages}")
+
+# Round 2
+messages.append({"role": "user", "content": "What is the second?"})
+response = client.chat.completions.create(
+    model="deepseek-chat",
+    messages=messages
+)
+
+messages.append(response.choices[0].message)
+print(f"Messages Round 2: {messages}")
+
+
+在第一轮请求时，传递给 API 的 messages 为：
+
+[
+    {"role": "user", "content": "What's the highest mountain in the world?"}
+]
+
+在第二轮请求时：
+
+要将第一轮中模型的输出添加到 messages 末尾
+将新的提问添加到 messages 末尾
+最终传递给 API 的 messages 为：
+
+[
+    {"role": "user", "content": "What's the highest mountain in the world?"},
+    {"role": "assistant", "content": "The highest mountain in the world is Mount Everest."},
+    {"role": "user", "content": "What is the second?"}
+]
+
+对话前缀续写（Beta）
+对话前缀续写沿用 Chat Completion API，用户提供 assistant 开头的消息，来让模型补全其余的消息。
+
+注意事项
+使用对话前缀续写时，用户需确保 messages 列表里最后一条消息的 role 为 assistant，并设置最后一条消息的 prefix 参数为 True。
+用户需要设置 base_url="https://api.deepseek.com/beta" 来开启 Beta 功能。
+样例代码
+下面给出了对话前缀续写的完整 Python 代码样例。在这个例子中，我们设置 assistant 开头的消息为 "```python\n" 来强制模型输出 python 代码，并设置 stop 参数为 ['```'] 来避免模型的额外解释。
+
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="<your api key>",
+    base_url="https://api.deepseek.com/beta",
+)
+
+messages = [
+    {"role": "user", "content": "Please write quick sort code"},
+    {"role": "assistant", "content": "```python\n", "prefix": True}
+]
+response = client.chat.completions.create(
+    model="deepseek-chat",
+    messages=messages,
+    stop=["```"],
+)
+print(response.choices[0].message.content)
+
+JSON Output
+在很多场景下，用户需要让模型严格按照 JSON 格式来输出，以实现输出的结构化，便于后续逻辑进行解析。
+
+DeepSeek 提供了 JSON Output 功能，来确保模型输出合法的 JSON 字符串。
+
+注意事项
+设置 response_format 参数为 {'type': 'json_object'}。
+用户传入的 system 或 user prompt 中必须含有 json 字样，并给出希望模型输出的 JSON 格式的样例，以指导模型来输出合法 JSON。
+需要合理设置 max_tokens 参数，防止 JSON 字符串被中途截断。
+在使用 JSON Output 功能时，API 有概率会返回空的 content。我们正在积极优化该问题，您可以尝试修改 prompt 以缓解此类问题。
+样例代码
+这里展示了使用 JSON Output 功能的完整 Python 代码：
+
+import json
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="<your api key>",
+    base_url="https://api.deepseek.com",
+)
+
+system_prompt = """
+The user will provide some exam text. Please parse the "question" and "answer" and output them in JSON format. 
+
+EXAMPLE INPUT: 
+Which is the highest mountain in the world? Mount Everest.
+
+EXAMPLE JSON OUTPUT:
+{
+    "question": "Which is the highest mountain in the world?",
+    "answer": "Mount Everest"
+}
+"""
+
+user_prompt = "Which is the longest river in the world? The Nile River."
+
+messages = [{"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}]
+
+response = client.chat.completions.create(
+    model="deepseek-chat",
+    messages=messages,
+    response_format={
+        'type': 'json_object'
+    }
+)
+
+print(json.loads(response.choices[0].message.content))
+
+
+模型将会输出：
+
+{
+    "question": "Which is the longest river in the world?",
+    "answer": "The Nile River"
+}
+
+Function Calling
+Function Calling 让模型能够调用外部工具，来增强自身能力。
+
+样例代码
+这里以获取用户当前位置的天气信息为例，展示了使用 Function Calling 的完整 Python 代码。
+
+Function Calling 的具体 API 格式请参考对话补全文档。
+
+from openai import OpenAI
+
+def send_messages(messages):
+    response = client.chat.completions.create(
+        model="deepseek-chat",
+        messages=messages,
+        tools=tools
+    )
+    return response.choices[0].message
+
+client = OpenAI(
+    api_key="<your api key>",
+    base_url="https://api.deepseek.com",
+)
+
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Get weather of an location, the user shoud supply a location first",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "The city and state, e.g. San Francisco, CA",
+                    }
+                },
+                "required": ["location"]
+            },
+        }
+    },
+]
+
+messages = [{"role": "user", "content": "How's the weather in Hangzhou?"}]
+message = send_messages(messages)
+print(f"User>\t {messages[0]['content']}")
+
+tool = message.tool_calls[0]
+messages.append(message)
+
+messages.append({"role": "tool", "tool_call_id": tool.id, "content": "24℃"})
+message = send_messages(messages)
+print(f"Model>\t {message.content}")
+
+
+这个例子的执行流程如下：
+
+用户：询问现在的天气
+模型：返回 function get_weather({location: 'Hangzhou'})
+用户：调用 function get_weather({location: 'Hangzhou'})，并传给模型。
+模型：返回自然语言，"The current temperature in Hangzhou is 24°C."
+注：上述代码中 get_weather 函数功能需由用户提供，模型本身不执行具体函数。
