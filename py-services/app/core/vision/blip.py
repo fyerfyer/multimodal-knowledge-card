@@ -1,4 +1,4 @@
-from typing import Union, List, Dict, Any, Optional
+from typing import Union, Dict, Any, Optional
 import torch
 import os
 from pathlib import Path
@@ -53,6 +53,18 @@ class BLIPModel:
         加载图像描述生成模型，优先使用本地模型
         """
         try:
+            # 确保设置了环境变量
+            if settings.USE_HF_MIRROR and os.environ.get('HF_ENDPOINT') is None:
+                os.environ['HF_ENDPOINT'] = settings.HF_MIRROR
+                # 为了调试，添加更明确的日志
+                logger.info(f"Setting HF_ENDPOINT={settings.HF_MIRROR} in _load_captioning_model")
+                
+            # 添加HF_HOME环境变量以控制缓存位置    
+            if 'HF_HOME' not in os.environ:
+                cache_dir = str(settings.BASE_DIR / "model_cache")
+                os.environ['HF_HOME'] = cache_dir
+                logger.info(f"Setting HF_HOME={cache_dir}")
+
             # 优先使用配置中指定的本地模型路径
             model_path = settings.VISION_MODEL_PATH or self.model_name
             logger.info(f"Loading BLIP captioning model: {model_path}")
@@ -67,6 +79,7 @@ class BLIPModel:
                 if settings.VISION_MODEL_PATH:
                     logger.warning(f"Failed to load local model from {model_path}, trying HuggingFace: {local_err}")
                 
+                logger.info(f"Loading model from HuggingFace with mirror: {os.environ.get('HF_ENDPOINT', 'Not Set')}")
                 self.processor = BlipProcessor.from_pretrained(self.model_name)
                 self.model = BlipForConditionalGeneration.from_pretrained(self.model_name).to(self.device)
                 logger.info("BLIP captioning model loaded from HuggingFace successfully")
@@ -88,6 +101,11 @@ class BLIPModel:
             return True  # 已经加载
             
         try:
+            # 确保设置了环境变量
+            if settings.USE_HF_MIRROR and os.environ.get('HF_ENDPOINT') is None:
+                os.environ['HF_ENDPOINT'] = settings.HF_MIRROR
+                logger.info(f"Setting HF_ENDPOINT={settings.HF_MIRROR} in _load_vqa_model")
+            
             # 优先使用配置中指定的本地VQA模型路径
             model_path = settings.VISION_VQA_MODEL_PATH or self.vqa_model_name
             logger.info(f"Loading BLIP VQA model: {model_path}")

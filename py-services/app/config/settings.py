@@ -3,6 +3,10 @@ from pydantic_settings import BaseSettings
 from pathlib import Path
 import os
 
+if os.environ.get('USE_HF_MIRROR', 'True').lower() in ('true', '1', 't'):
+    os.environ['HF_ENDPOINT'] = os.environ.get('HF_MIRROR', 'https://hf-mirror.com')
+    print(f"Setting HuggingFace mirror in settings.py: {os.environ['HF_ENDPOINT']}")
+
 class Settings(BaseSettings):
     """
     系统配置类，用于管理应用程序的所有配置参数

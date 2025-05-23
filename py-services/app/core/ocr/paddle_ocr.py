@@ -17,8 +17,8 @@ class PaddleOCREngine(OCRInterface):
     def __init__(
         self, 
         lang: str = settings.OCR_LANG, 
-        use_gpu: bool = False, 
-        enable_mkldnn: bool = True
+        use_gpu: bool = False,  # 注意：此参数在当前版本的PaddleOCR中未使用
+        enable_mkldnn: bool = True  # 注意：此参数在当前版本的PaddleOCR中未使用
     ):
         """
         初始化PaddleOCR引擎
@@ -42,11 +42,10 @@ class PaddleOCREngine(OCRInterface):
             logger.info(f"Initializing PaddleOCR with language: {self.lang}")
             # 创建PaddleOCR实例，配置检测、识别和方向分类器
             self.ocr_engine = PaddleOCR(
-                use_angle_cls=True,  # 使用方向分类器
-                lang=self.lang,      # 语言设置
-                use_gpu=self.use_gpu, 
-                enable_mkldnn=self.enable_mkldnn,
-                show_log=False       # 不显示PaddleOCR的日志
+                use_textline_orientation=True,  # 替换use_angle_cls，使用方向分类器
+                lang=self.lang,                 # 语言设置
+                # use_gpu=self.use_gpu, 
+                # enable_mkldnn=self.enable_mkldnn
             )
             logger.info("PaddleOCR engine initialized successfully")
         except Exception as e:
@@ -74,7 +73,7 @@ class PaddleOCREngine(OCRInterface):
             
             logger.debug(f"Processing image with PaddleOCR")
             # 执行OCR识别
-            ocr_result = self.ocr_engine.ocr(image, cls=True)
+            ocr_result = self.ocr_engine.predict(image)
             
             # PaddleOCR 3.x版本返回格式可能有区别，需要适配
             if len(ocr_result) > 0 and isinstance(ocr_result[0], list):

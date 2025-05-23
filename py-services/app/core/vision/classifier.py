@@ -1,3 +1,4 @@
+import os
 from typing import Dict, Any, Union, Optional, Tuple
 import time
 from pathlib import Path
@@ -46,7 +47,10 @@ class ContentClassifier:
         
         # 使用配置的VQA模型路径或默认路径
         vqa_model_path = settings.VISION_VQA_MODEL_PATH or "Salesforce/blip-vqa-base"
-        
+        if settings.USE_HF_MIRROR and os.environ.get('HF_ENDPOINT') is None:
+            os.environ['HF_ENDPOINT'] = settings.HF_MIRROR
+            logger.info(f"Using HuggingFace mirror for captioner: {settings.HF_MIRROR}")
+
         # 初始化BLIP模型（使用VQA功能）
         self.blip_model = BLIPModel(
             model_name=settings.VISION_MODEL_PATH or "Salesforce/blip-image-captioning-base",
