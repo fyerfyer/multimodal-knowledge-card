@@ -178,5 +178,5 @@ design.txt
 uploads/
 logs/
 
-# huggingface model
-models/
+api.txt
+deepseek-api.txt

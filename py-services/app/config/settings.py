@@ -40,11 +40,15 @@ class Settings(BaseSettings):
     LLM_API_KEY: Optional[str] = None
     
     # DashScope API配置
-    DASHSCOPE_API_KEY: Optional[str] = None  # 添加这一行
+    DASHSCOPE_API_KEY: Optional[str] = None
+    
+    # DeepSeek API配置
+    DEEPSEEK_API_KEY: Optional[str] = None  
     
     # 模型下载配置
-    HF_MIRROR: str = "https://hf-mirror.com"  # 添加HuggingFace镜像站点
-    USE_HF_MIRROR: bool = True  # 是否使用镜像站点
+    HF_MIRROR: str = "https://hf-mirror.com"
+    USE_HF_MIRROR: bool = True
+    HF_ENDPOINT: Optional[str] = None  
     
     # 缓存配置
     ENABLE_CACHE: bool = True
